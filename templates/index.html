@@ -1,0 +1,495 @@
+<!DOCTYPE html>
+<html lang="ru" translate="no">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="google" content="notranslate">
+<title>Lead-Lag Trader</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;600&family=Orbitron:wght@500;700&display=swap" rel="stylesheet">
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0a0e17;
+  --bg2: #111827;
+  --bg3: #1a1f2e;
+  --bg4: #0d1117;
+  --text: #e2e8f0;
+  --text2: #94a3b8;
+  --text3: #64748b;
+  --green: #00ff88;
+  --cyan: #00d4ff;
+  --red: #ef4444;
+  --orange: #f59e0b;
+  --purple: #a855f7;
+  --blue: #3b82f6;
+  --border: #2d3748;
+}
+body { font-family: 'JetBrains Mono', monospace; background: var(--bg); color: var(--text); min-height: 100vh; }
+.container { max-width: 1600px; margin: 0 auto; padding: 12px; }
+
+/* HEADER */
+.header { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; background: var(--bg2); border-bottom: 1px solid var(--border); gap: 10px; min-height: 56px; }
+.logo { font-family: 'Orbitron', sans-serif; font-size: 1.3rem; font-weight: 700; background: linear-gradient(90deg, var(--cyan), var(--purple)); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+.logo-sub { font-size: 0.6rem; color: var(--text3); -webkit-text-fill-color: var(--text3); }
+.header-controls { display: flex; gap: 6px; align-items: center; }
+.header-time { font-size: 0.72rem; color: var(--cyan); padding: 4px 10px; background: var(--bg4); border-radius: 4px; }
+
+/* BADGES */
+.badge { padding: 4px 10px; border-radius: 14px; font-size: 0.68rem; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
+.badge-green { background: rgba(0,255,136,0.12); color: var(--green); border: 1px solid rgba(0,255,136,0.25); }
+.badge-red { background: rgba(239,68,68,0.12); color: var(--red); border: 1px solid rgba(239,68,68,0.25); }
+.badge-cyan { background: rgba(0,212,255,0.12); color: var(--cyan); border: 1px solid rgba(0,212,255,0.25); }
+.badge-orange { background: rgba(245,158,11,0.12); color: var(--orange); border: 1px solid rgba(245,158,11,0.25); }
+.badge-purple { background: rgba(168,85,247,0.12); color: var(--purple); border: 1px solid rgba(168,85,247,0.25); }
+
+/* BUTTONS */
+.btn { padding: 5px 12px; border: none; border-radius: 4px; font-family: inherit; font-size: 0.72rem; font-weight: 600; cursor: pointer; transition: all 0.15s; }
+.btn-primary { background: linear-gradient(135deg, var(--cyan), var(--purple)); color: var(--bg); }
+.btn-secondary { background: var(--bg3); color: var(--text); border: 1px solid var(--border); }
+.btn-danger { background: rgba(239,68,68,0.15); color: var(--red); border: 1px solid var(--red); }
+.btn:hover { opacity: 0.8; transform: translateY(-1px); }
+
+/* STATS */
+.stats { display: grid; grid-template-columns: repeat(7, 1fr); gap: 8px; margin: 12px 0; }
+@media (max-width: 1000px) { .stats { grid-template-columns: repeat(3, 1fr); } }
+.stat { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; padding: 10px; }
+.stat-label { font-size: 0.6rem; color: var(--text3); text-transform: uppercase; margin-bottom: 4px; }
+.stat-value { font-family: 'Orbitron', sans-serif; font-size: 1.05rem; font-weight: 700; }
+.stat-value.pos { color: var(--green); }
+.stat-value.neg { color: var(--red); }
+
+/* GRID */
+.grid-2 { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }
+@media (max-width: 900px) { .grid-2 { grid-template-columns: 1fr; } }
+
+/* CARDS */
+.card { background: var(--bg3); border: 1px solid var(--border); border-radius: 6px; overflow: hidden; margin-bottom: 12px; }
+.card-header { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg2); border-bottom: 1px solid var(--border); }
+.card-title { font-family: 'Orbitron', sans-serif; font-size: 0.75rem; font-weight: 700; color: var(--cyan); }
+.card-body { padding: 10px; max-height: 340px; overflow-y: auto; }
+
+/* TABLE */
+table { width: 100%; border-collapse: collapse; font-size: 0.72rem; }
+th { text-align: left; padding: 6px 8px; color: var(--text3); font-weight: 600; border-bottom: 1px solid var(--border); font-size: 0.65rem; text-transform: uppercase; }
+td { padding: 6px 8px; border-bottom: 1px solid rgba(45,55,72,0.5); }
+tr:hover { background: rgba(0,212,255,0.03); }
+
+/* IMPULSE LOG */
+.impulse-item { display: flex; align-items: center; gap: 8px; padding: 5px 0; border-bottom: 1px solid rgba(45,55,72,0.4); font-size: 0.72rem; }
+.impulse-arrow { font-size: 1rem; }
+.impulse-arrow.up { color: var(--green); }
+.impulse-arrow.down { color: var(--red); }
+.impulse-mag { font-weight: 600; min-width: 52px; }
+.impulse-time { color: var(--text3); font-size: 0.65rem; }
+.impulse-followers { color: var(--text2); font-size: 0.65rem; }
+
+/* PAIR ROW */
+.pair-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(45,55,72,0.4); }
+.pair-sym { font-weight: 600; font-size: 0.78rem; color: var(--text); min-width: 70px; }
+.pair-stats { display: flex; gap: 12px; font-size: 0.68rem; color: var(--text2); }
+.pair-stat-val { font-weight: 600; }
+
+/* POSITION ROW */
+.pos-row { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-bottom: 1px solid rgba(45,55,72,0.4); }
+.pos-sym { font-weight: 600; font-size: 0.78rem; min-width: 70px; }
+.pos-side { font-weight: 600; font-size: 0.68rem; padding: 2px 6px; border-radius: 3px; }
+.pos-side.long { color: var(--green); background: rgba(0,255,136,0.1); }
+.pos-side.short { color: var(--red); background: rgba(239,68,68,0.1); }
+.pos-pnl { font-weight: 700; font-size: 0.78rem; min-width: 60px; text-align: right; }
+
+/* SCANNER STATUS */
+.scanner-bar { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; background: var(--bg2); border: 1px solid var(--border); border-radius: 6px; font-size: 0.7rem; color: var(--text2); }
+
+/* EMPTY */
+.empty { text-align: center; color: var(--text3); padding: 24px; font-size: 0.75rem; }
+
+/* SCROLLBAR */
+::-webkit-scrollbar { width: 4px; }
+::-webkit-scrollbar-track { background: var(--bg4); }
+::-webkit-scrollbar-thumb { background: var(--border); border-radius: 2px; }
+
+/* PULSE */
+@keyframes pulse { 50% { opacity: 0.5; } }
+.pulse { animation: pulse 2s infinite; }
+
+/* HEALTH DOT */
+.health-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; }
+.health-dot.ok { background: var(--green); }
+.health-dot.error { background: var(--red); }
+.health-dot.unknown { background: var(--orange); }
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div>
+    <span class="logo">LEAD-LAG TRADER<br><span class="logo-sub">BTC Impulse → Alt Follow</span></span>
+  </div>
+  <div class="header-controls">
+    <span class="header-time" id="clock">--:--:--</span>
+    <span class="badge badge-cyan" id="modeBadge">PAPER</span>
+    <span class="badge" id="healthBadge">
+      <span class="health-dot unknown" id="healthDot"></span> INIT
+    </span>
+    <button class="btn btn-secondary" id="btnPause" onclick="togglePause()">PAUSE</button>
+    <button class="btn btn-danger" onclick="closeAll()">CLOSE ALL</button>
+  </div>
+</div>
+
+<div class="container">
+
+<!-- STATS -->
+<div class="stats">
+  <div class="stat">
+    <div class="stat-label">Balance</div>
+    <div class="stat-value" id="statBalance">$0.00</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">PnL %</div>
+    <div class="stat-value" id="statPnl">0.00%</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Trades</div>
+    <div class="stat-value" id="statTrades">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Win Rate</div>
+    <div class="stat-value" id="statWR">0%</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Open Pos</div>
+    <div class="stat-value" id="statOpen">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">Active Pairs</div>
+    <div class="stat-value" id="statPairs">0</div>
+  </div>
+  <div class="stat">
+    <div class="stat-label">BTC Price</div>
+    <div class="stat-value" id="statBTC">$0</div>
+  </div>
+</div>
+
+<!-- MAIN GRID -->
+<div class="grid-2">
+  <!-- LEFT: ACTIVE PAIRS -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">ACTIVE PAIRS</span>
+      <button class="btn btn-secondary" onclick="runScan()" id="btnScan">SCAN NOW</button>
+    </div>
+    <div class="card-body" id="pairsBody">
+      <div class="empty">Waiting for scanner...</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: OPEN POSITIONS -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">OPEN POSITIONS</span>
+      <span class="badge badge-cyan" id="posCount">0</span>
+    </div>
+    <div class="card-body" id="positionsBody">
+      <div class="empty">No open positions</div>
+    </div>
+  </div>
+</div>
+
+<div class="grid-2">
+  <!-- LEFT: IMPULSE LOG -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">BTC IMPULSE LOG</span>
+      <span class="badge badge-purple" id="impulseCount">0</span>
+    </div>
+    <div class="card-body" id="impulsesBody">
+      <div class="empty">No impulses detected yet</div>
+    </div>
+  </div>
+
+  <!-- RIGHT: TRADE HISTORY -->
+  <div class="card">
+    <div class="card-header">
+      <span class="card-title">TRADE HISTORY</span>
+      <span class="badge badge-cyan" id="tradeCount">0</span>
+    </div>
+    <div class="card-body" id="tradesBody">
+      <div class="empty">No trades yet</div>
+    </div>
+  </div>
+</div>
+
+<!-- SCANNER STATUS BAR -->
+<div class="scanner-bar">
+  <span id="scannerStatus">SCANNER: initializing...</span>
+  <span id="scannerNext">next scan: --:--</span>
+</div>
+
+</div><!-- container -->
+
+<script>
+// ============ DATA FETCHING ============
+
+let refreshInterval = null;
+
+async function fetchJSON(url) {
+  try {
+    const r = await fetch(url);
+    if (!r.ok) return null;
+    return await r.json();
+  } catch(e) {
+    console.error('Fetch error:', url, e);
+    return null;
+  }
+}
+
+async function updateAll() {
+  const [status, pairs, positions, impulses, trades] = await Promise.all([
+    fetchJSON('/api/status'),
+    fetchJSON('/api/pairs'),
+    fetchJSON('/api/positions'),
+    fetchJSON('/api/impulses?limit=30'),
+    fetchJSON('/api/trades?limit=30')
+  ]);
+
+  if (status) renderStatus(status);
+  if (pairs) renderPairs(pairs);
+  if (positions) renderPositions(positions);
+  if (impulses) renderImpulses(impulses);
+  if (trades) renderTrades(trades);
+}
+
+// ============ RENDER FUNCTIONS ============
+
+function renderStatus(s) {
+  // Stats
+  const bal = s.balance || 0;
+  document.getElementById('statBalance').textContent = '$' + bal.toFixed(2);
+
+  const pnl = s.total_pnl || 0;
+  const pnlEl = document.getElementById('statPnl');
+  pnlEl.textContent = (pnl >= 0 ? '+' : '') + pnl.toFixed(2) + '%';
+  pnlEl.className = 'stat-value ' + (pnl >= 0 ? 'pos' : 'neg');
+
+  document.getElementById('statTrades').textContent = s.total_trades || 0;
+
+  const wr = s.win_rate || 0;
+  const wrEl = document.getElementById('statWR');
+  wrEl.textContent = wr.toFixed(1) + '%';
+  wrEl.className = 'stat-value ' + (wr >= 50 ? 'pos' : wr > 0 ? 'neg' : '');
+
+  document.getElementById('statOpen').textContent = s.open_positions || 0;
+  document.getElementById('statPairs').textContent = s.active_pairs || 0;
+
+  const btc = s.btc_price || 0;
+  document.getElementById('statBTC').textContent = '$' + btc.toLocaleString('en', {maximumFractionDigits: 0});
+
+  // Mode badge
+  const mode = s.trade_mode || 'PAPER';
+  const modeBadge = document.getElementById('modeBadge');
+  modeBadge.textContent = mode;
+  modeBadge.className = 'badge ' + (mode === 'PAPER' ? 'badge-cyan' : 'badge-red');
+
+  // Pause button
+  const btnPause = document.getElementById('btnPause');
+  if (s.paused) {
+    btnPause.textContent = 'RESUME';
+    btnPause.className = 'btn btn-primary';
+  } else {
+    btnPause.textContent = 'PAUSE';
+    btnPause.className = 'btn btn-secondary';
+  }
+
+  // Health
+  const health = s.health || {};
+  const allOk = Object.values(health).every(v => v === 'ok');
+  const dot = document.getElementById('healthDot');
+  const hBadge = document.getElementById('healthBadge');
+  if (allOk) {
+    dot.className = 'health-dot ok';
+    hBadge.className = 'badge badge-green';
+    hBadge.innerHTML = '<span class="health-dot ok"></span> OK';
+  } else {
+    dot.className = 'health-dot error';
+    hBadge.className = 'badge badge-orange';
+    hBadge.innerHTML = '<span class="health-dot error"></span> WARN';
+  }
+
+  // Scanner
+  const scanEl = document.getElementById('scannerStatus');
+  if (s.scan_running) {
+    scanEl.textContent = 'SCANNER: running...';
+  } else if (s.last_scan) {
+    scanEl.textContent = 'SCANNER: last run ' + s.last_scan;
+  }
+  document.getElementById('scannerNext').textContent = 'next: ' + (s.next_scan || '--:--');
+}
+
+function renderPairs(pairs) {
+  const el = document.getElementById('pairsBody');
+  if (!pairs || pairs.length === 0) {
+    el.innerHTML = '<div class="empty">No active pairs — waiting for scanner</div>';
+    return;
+  }
+  let html = '';
+  for (const p of pairs) {
+    const wr = p.scanner_wr || 0;
+    const pf = p.scanner_pf || 0;
+    const liveWr = p.live_wr || 0;
+    const liveTrades = p.live_trades || 0;
+    const wrColor = wr >= 60 ? 'var(--green)' : wr >= 50 ? 'var(--orange)' : 'var(--red)';
+
+    html += `<div class="pair-row">
+      <span class="pair-sym">${p.symbol}</span>
+      <div class="pair-stats">
+        <span>WR:<span class="pair-stat-val" style="color:${wrColor}">${wr.toFixed(0)}%</span></span>
+        <span>PF:<span class="pair-stat-val">${pf.toFixed(1)}</span></span>
+        <span>Sh:<span class="pair-stat-val">${(p.sharpe || 0).toFixed(2)}</span></span>
+        <span style="color:var(--text3)">live:${liveTrades}t ${liveWr.toFixed(0)}%</span>
+        <button class="btn btn-danger" style="padding:2px 6px;font-size:0.6rem" onclick="removePair('${p.symbol}')">×</button>
+      </div>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderPositions(positions) {
+  const el = document.getElementById('positionsBody');
+  document.getElementById('posCount').textContent = positions ? positions.length : 0;
+
+  if (!positions || positions.length === 0) {
+    el.innerHTML = '<div class="empty">No open positions</div>';
+    return;
+  }
+  let html = '';
+  for (const p of positions) {
+    const pnl = p.pnl_percent || 0;
+    const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const sideClass = p.side === 'LONG' ? 'long' : 'short';
+    const icon = pnl >= 0 ? '+' : '';
+
+    // Calculate hold time
+    let holdStr = '';
+    if (p.opened_at) {
+      const opened = new Date(p.opened_at.replace(' ', 'T') + 'Z');
+      const now = new Date();
+      const sec = Math.floor((now - opened) / 1000);
+      holdStr = sec < 60 ? sec + 's' : Math.floor(sec/60) + 'm';
+    }
+
+    html += `<div class="pos-row">
+      <span class="pos-sym">${p.short_symbol}</span>
+      <span class="pos-side ${sideClass}">${p.side}</span>
+      <span style="font-size:0.68rem;color:var(--text2)">${holdStr}</span>
+      <span class="pos-pnl" style="color:${pnlColor}">${icon}${pnl.toFixed(2)}%</span>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderImpulses(impulses) {
+  const el = document.getElementById('impulsesBody');
+  document.getElementById('impulseCount').textContent = impulses ? impulses.length : 0;
+
+  if (!impulses || impulses.length === 0) {
+    el.innerHTML = '<div class="empty">No impulses detected yet</div>';
+    return;
+  }
+  let html = '';
+  for (const imp of impulses.slice(0, 25)) {
+    const isUp = imp.direction === 'LONG';
+    const arrow = isUp ? '▲' : '▼';
+    const arrowClass = isUp ? 'up' : 'down';
+    const mag = (Math.abs(imp.magnitude || 0) * 100).toFixed(2);
+    const time = (imp.timestamp || '').slice(11, 19);
+    const followers = imp.n_followers_entered || 0;
+
+    html += `<div class="impulse-item">
+      <span class="impulse-arrow ${arrowClass}">${arrow}</span>
+      <span class="impulse-mag" style="color:${isUp ? 'var(--green)' : 'var(--red)'}">${isUp ? '+' : '-'}${mag}%</span>
+      <span class="impulse-time">${time}</span>
+      <span class="impulse-followers">→ ${followers} pos</span>
+    </div>`;
+  }
+  el.innerHTML = html;
+}
+
+function renderTrades(trades) {
+  const el = document.getElementById('tradesBody');
+  document.getElementById('tradeCount').textContent = trades ? trades.length : 0;
+
+  if (!trades || trades.length === 0) {
+    el.innerHTML = '<div class="empty">No trades yet</div>';
+    return;
+  }
+  let html = '<table><tr><th>ID</th><th>Symbol</th><th>Side</th><th>PnL</th><th>Reason</th><th>Hold</th></tr>';
+  for (const t of trades.slice(0, 25)) {
+    const pnl = t.pnl_pct || 0;
+    const pnlColor = pnl >= 0 ? 'var(--green)' : 'var(--red)';
+    const icon = pnl > 0 ? '✓' : '✗';
+    const hold = t.hold_seconds || 0;
+    const holdStr = hold < 60 ? hold + 's' : Math.floor(hold/60) + 'm';
+
+    html += `<tr>
+      <td style="color:var(--text3)">${t.trade_id || ''}</td>
+      <td style="font-weight:600">${t.symbol || ''}</td>
+      <td><span class="pos-side ${(t.side||'').toLowerCase()}">${t.side || ''}</span></td>
+      <td style="color:${pnlColor};font-weight:600">${pnl >= 0 ? '+' : ''}${pnl.toFixed(2)}% ${icon}</td>
+      <td style="color:var(--text2)">${t.close_reason || ''}</td>
+      <td style="color:var(--text3)">${holdStr}</td>
+    </tr>`;
+  }
+  html += '</table>';
+  el.innerHTML = html;
+}
+
+// ============ ACTIONS ============
+
+async function togglePause() {
+  await fetch('/api/pause', {method: 'POST'});
+  updateAll();
+}
+
+async function closeAll() {
+  if (!confirm('Close all positions?')) return;
+  await fetch('/api/close_all', {method: 'POST'});
+  updateAll();
+}
+
+async function runScan() {
+  document.getElementById('btnScan').textContent = '...';
+  await fetch('/api/scan/run', {method: 'POST'});
+  document.getElementById('btnScan').textContent = 'SCAN NOW';
+}
+
+async function removePair(symbol) {
+  await fetch('/api/pair/remove', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({symbol: symbol})
+  });
+  updateAll();
+}
+
+// ============ CLOCK ============
+
+function updateClock() {
+  const now = new Date();
+  const utc2 = new Date(now.getTime() + 2*60*60*1000);
+  const h = String(utc2.getUTCHours()).padStart(2, '0');
+  const m = String(utc2.getUTCMinutes()).padStart(2, '0');
+  const s = String(utc2.getUTCSeconds()).padStart(2, '0');
+  document.getElementById('clock').textContent = h + ':' + m + ':' + s + ' GMT+2';
+}
+
+// ============ INIT ============
+
+updateClock();
+setInterval(updateClock, 1000);
+
+updateAll();
+refreshInterval = setInterval(updateAll, 2000);
+</script>
+</body>
+</html>
