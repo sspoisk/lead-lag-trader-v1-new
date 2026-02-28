@@ -75,13 +75,14 @@ class PairScanner:
         ex = self._get_exchange()
         since = int((datetime.utcnow() - timedelta(hours=hours)).timestamp() * 1000)
         all_candles = []
+        batch_size = 300  # OKX max for 1m candles
         try:
             while True:
-                candles = ex.fetch_ohlcv(symbol, timeframe, since=since, limit=500)
+                candles = ex.fetch_ohlcv(symbol, timeframe, since=since, limit=batch_size)
                 if not candles:
                     break
                 all_candles.extend(candles)
-                if len(candles) < 500:
+                if len(candles) < batch_size:
                     break
                 since = candles[-1][0] + 1
                 time.sleep(0.1)
