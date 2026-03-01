@@ -417,7 +417,11 @@ def api_trades():
 @app.route('/api/trades/stats')
 def api_trade_stats():
     symbol = request.args.get('symbol')
-    return jsonify(db.get_trade_stats(symbol=symbol))
+    stats = db.get_trade_stats(symbol=symbol)
+    config = load_config()
+    stats['max_positions'] = config.get('trading', {}).get('max_positions', 10)
+    stats['max_active'] = config.get('follower', {}).get('max_active', 10)
+    return jsonify(stats)
 
 
 @app.route('/api/impulses')
@@ -451,10 +455,14 @@ def api_settings_post():
             return jsonify({'error': 'no data'}), 400
 
         config = load_config()
-        # Deep merge
+        # Deep merge (2 levels)
         for key, value in data.items():
             if isinstance(value, dict) and isinstance(config.get(key), dict):
-                config[key].update(value)
+                for k2, v2 in value.items():
+                    if isinstance(v2, dict) and isinstance(config[key].get(k2), dict):
+                        config[key][k2].update(v2)
+                    else:
+                        config[key][k2] = v2
             else:
                 config[key] = value
 
@@ -548,6 +556,17 @@ def api_logs():
     log_type = request.args.get('type')
     limit = request.args.get('limit', 50, type=int)
     return jsonify(db.get_logs(log_type, limit))
+
+
+@app.route('/api/restart', methods=['POST'])
+def api_restart():
+    """Restart the bot via systemd."""
+    db.log('control', 'Restart requested from UI', {})
+    def _restart():
+        time.sleep(1)
+        os.system('systemctl restart lead-lag-trader.service')
+    threading.Thread(target=_restart, daemon=True).start()
+    return jsonify({'status': 'restarting'})
 
 
 # ============================================================

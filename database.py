@@ -137,6 +137,14 @@ class Database:
             cur.execute('CREATE INDEX IF NOT EXISTS idx_impulses_ts ON impulses(timestamp)')
             cur.execute('CREATE INDEX IF NOT EXISTS idx_pair_stats_symbol ON pair_stats(symbol)')
 
+            # Migration: add quality columns to impulses
+            try:
+                cur.execute("ALTER TABLE impulses ADD COLUMN gap_seconds REAL DEFAULT 0")
+                cur.execute("ALTER TABLE impulses ADD COLUMN gap_factor REAL DEFAULT 1.0")
+                cur.execute("ALTER TABLE impulses ADD COLUMN quality REAL DEFAULT 0")
+            except Exception:
+                pass  # columns already exist
+
     # === TRADES ===
 
     def save_trade(self, trade: Dict) -> int:
@@ -195,6 +203,10 @@ class Database:
             total_loss = abs(sum(r['pnl_pct'] for r in losses))
             pf = total_profit / total_loss if total_loss > 0 else 999
 
+            tp_count = sum(1 for r in rows if r.get('close_reason') == 'TP')
+            sl_count = sum(1 for r in rows if r.get('close_reason') == 'SL')
+            time_count = sum(1 for r in rows if r.get('close_reason') == 'TIME')
+
             return {
                 'total': len(rows),
                 'wins': len(wins),
@@ -204,7 +216,10 @@ class Database:
                 'total_pnl': round(sum(r['pnl_pct'] for r in rows), 2),
                 'total_pnl_usdt': round(sum(r['pnl_usdt'] for r in rows), 2),
                 'avg_pnl': round(sum(r['pnl_pct'] for r in rows) / len(rows), 3),
-                'avg_hold_sec': round(sum(r['hold_seconds'] for r in rows) / len(rows), 1)
+                'avg_hold_sec': round(sum(r['hold_seconds'] for r in rows) / len(rows), 1),
+                'tp_count': tp_count,
+                'sl_count': sl_count,
+                'time_count': time_count
             }
 
     # === PAIRS ===
@@ -269,8 +284,9 @@ class Database:
         with self.get_cursor() as cur:
             cur.execute('''
             INSERT INTO impulses (timestamp, leader, direction, magnitude,
-                n_followers_entered, candle_open, candle_close)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+                n_followers_entered, candle_open, candle_close,
+                gap_seconds, gap_factor, quality)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 impulse.get('timestamp', get_gmt2_str()),
                 impulse.get('leader', 'BTC'),
@@ -278,7 +294,10 @@ class Database:
                 impulse.get('magnitude'),
                 impulse.get('n_followers_entered', 0),
                 impulse.get('candle_open'),
-                impulse.get('candle_close')
+                impulse.get('candle_close'),
+                impulse.get('gap_seconds', 0),
+                impulse.get('gap_factor', 1.0),
+                impulse.get('quality', 0),
             ))
             return cur.lastrowid
 

@@ -124,19 +124,40 @@ class LeadLagTrader:
         self.trade_counter += 1
         return f"LL-{self.trade_counter:04d}"
 
+    def _calc_time_gap_factor(self, gap_seconds: float) -> float:
+        """
+        Calculate time gap quality factor.
+        Gap < gap_weak_sec → factor = gap_min_factor (weak signal, noise)
+        Gap > gap_strong_sec → factor = gap_max_factor (fresh signal)
+        Between → linear interpolation
+        """
+        cfg = self.config.get('leader', {}).get('quality', {})
+        gap_weak = cfg.get('gap_weak_sec', 120)      # < 2 min = weak
+        gap_strong = cfg.get('gap_strong_sec', 900)   # > 15 min = strong
+        f_min = cfg.get('gap_min_factor', 0.5)
+        f_max = cfg.get('gap_max_factor', 2.0)
+
+        if gap_seconds <= gap_weak:
+            return f_min
+        if gap_seconds >= gap_strong:
+            return f_max
+        # Linear interpolation
+        ratio = (gap_seconds - gap_weak) / (gap_strong - gap_weak)
+        return f_min + ratio * (f_max - f_min)
+
     def check_btc_impulse(self) -> Optional[Dict]:
         """
         Check latest BTC 1m candle for impulse.
-        Returns impulse dict or None.
+        Uses quality scoring: quality = magnitude × time_gap_factor.
+        Returns impulse dict with quality info, or None.
         """
         cfg = self.config.get('leader', {})
         threshold = cfg.get('impulse_threshold', 0.003)
-        cooldown = cfg.get('cooldown_seconds', 60)
+        quality_cfg = cfg.get('quality', {})
+        quality_enabled = quality_cfg.get('enabled', True)
+        min_quality = quality_cfg.get('min_quality', 0.0003)
 
-        # Cooldown check
         now = time.time()
-        if now - self.last_impulse_ts < cooldown:
-            return None
 
         try:
             candles = self.exchange.fetch_ohlcv('BTC/USDT:USDT', '1m', limit=2)
@@ -159,6 +180,21 @@ class LeadLagTrader:
 
             if abs(move) >= threshold:
                 direction = 'LONG' if move > 0 else 'SHORT'
+
+                # Quality scoring
+                gap_sec = now - self.last_impulse_ts if self.last_impulse_ts > 0 else 9999
+                gap_factor = self._calc_time_gap_factor(gap_sec)
+                quality = abs(move) * gap_factor
+
+                # Quality gate
+                if quality_enabled and quality < min_quality:
+                    logger.info(f"[IMPULSE] BTC {direction} {abs(move)*100:.2f}% "
+                                f"SKIP: quality={quality*100:.4f}% < min {min_quality*100:.4f}% "
+                                f"(gap={gap_sec:.0f}s, factor={gap_factor:.2f})")
+                    # Still update last_impulse_ts so gap accumulates from last DETECTED impulse
+                    self.last_impulse_ts = now
+                    return None
+
                 impulse = {
                     'timestamp': get_gmt2_str(),
                     'leader': 'BTC',
@@ -166,11 +202,15 @@ class LeadLagTrader:
                     'magnitude': round(move, 6),
                     'candle_open': o,
                     'candle_close': c,
-                    'n_followers_entered': 0
+                    'n_followers_entered': 0,
+                    'gap_seconds': round(gap_sec, 0),
+                    'gap_factor': round(gap_factor, 2),
+                    'quality': round(quality, 6),
                 }
                 self.last_impulse_ts = now
                 logger.info(f"[IMPULSE] BTC {direction} {abs(move)*100:.2f}% "
-                            f"(o={o:.0f} c={c:.0f})")
+                            f"quality={quality*100:.4f}% (gap={gap_sec:.0f}s, "
+                            f"factor={gap_factor:.2f}) → ENTER")
                 return impulse
 
         except Exception as e:
