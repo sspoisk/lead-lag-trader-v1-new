@@ -336,7 +336,7 @@ class LeadLagTrader:
                     try:
                         opened = datetime.strptime(pos.opened_at, '%Y-%m-%d %H:%M:%S')
                         elapsed = (now - opened).total_seconds()
-                        if elapsed >= pos.hold_max_seconds:
+                        if pos.hold_max_seconds > 0 and elapsed >= pos.hold_max_seconds:
                             to_close.append((sym, 'TIME'))
                     except (ValueError, TypeError):
                         pass
