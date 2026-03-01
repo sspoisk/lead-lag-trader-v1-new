@@ -267,6 +267,22 @@ tr:hover { background: rgba(0,212,255,0.03); }
     <div class="settings-group">
       <div class="settings-group-title">TRADING</div>
       <div class="setting-row">
+        <span class="setting-label">Вкл LONG</span>
+        <input type="checkbox" id="set_enable_long" checked>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Вкл SHORT</span>
+        <input type="checkbox" id="set_enable_short" checked>
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Лонг на любой сигнал</span>
+        <input type="checkbox" id="set_force_long" onchange="if(this.checked) document.getElementById('set_force_short').checked=false">
+      </div>
+      <div class="setting-row">
+        <span class="setting-label">Шорт на любой сигнал</span>
+        <input type="checkbox" id="set_force_short" onchange="if(this.checked) document.getElementById('set_force_long').checked=false">
+      </div>
+      <div class="setting-row">
         <span class="setting-label">TP %</span>
         <input class="setting-input" id="set_tp_pct" type="number" step="0.1" value="0.5">
       </div>
@@ -279,8 +295,8 @@ tr:hover { background: rgba(0,212,255,0.03); }
         <input class="setting-input" id="set_fee_pct" type="number" step="0.01" value="0.05">
       </div>
       <div class="setting-row">
-        <span class="setting-label">Hold max min</span>
-        <input class="setting-input" id="set_hold_max_min" type="number" step="1" value="5">
+        <span class="setting-label">Hold max sec</span>
+        <input class="setting-input" id="set_hold_max_sec" type="number" step="1" value="30">
       </div>
       <div class="setting-row">
         <span class="setting-label">Position $ size</span>
@@ -615,6 +631,14 @@ function renderImpulses(impulses) {
     const gapSec = imp.gap_seconds || 0;
     const gapFactor = imp.gap_factor || 1.0;
     const qualityVal = (imp.quality || 0) * 100;
+    const status = imp.status || 'accepted';
+    const isSkipped = status !== 'accepted';
+
+    // Skip reason label
+    let skipLabel = '';
+    if (status === 'skip_long_disabled') skipLabel = 'LONG выкл';
+    else if (status === 'skip_short_disabled') skipLabel = 'SHORT выкл';
+    else if (status === 'skip_quality') skipLabel = 'Q-фильтр';
 
     // Quality label based on quality score (magnitude × gap_factor)
     let quality, qClass;
@@ -630,13 +654,18 @@ function renderImpulses(impulses) {
       gapStr = ' пауза:' + gapStr + ' x' + gapFactor.toFixed(1);
     }
 
-    html += `<div class="impulse-item">
+    const rowStyle = isSkipped ? 'opacity:0.45;' : '';
+    const followerCell = isSkipped
+      ? `<span style="font-size:0.58rem;color:var(--text2)">[${skipLabel}]</span>`
+      : `<span class="impulse-followers">${followers > 0 ? '→ ' + followers + ' поз' : 'пропуск'}</span>`;
+
+    html += `<div class="impulse-item" style="${rowStyle}">
       <span class="impulse-arrow ${arrowClass}">${arrow}</span>
       <span class="impulse-mag" style="color:${isUp ? 'var(--green)' : 'var(--red)'}">${isUp ? '+' : '-'}${magStr}%</span>
       <span class="impulse-quality ${qClass}">${quality}</span>
       <span style="font-size:0.58rem;color:var(--purple)" title="quality=${qualityVal.toFixed(3)}%">${qualityVal > 0 ? 'Q:' + qualityVal.toFixed(3) + '%' : ''}${gapStr}</span>
       <span class="impulse-time">${time}</span>
-      <span class="impulse-followers">${followers > 0 ? '→ ' + followers + ' поз' : 'пропуск'}</span>
+      ${followerCell}
     </div>`;
   }
   el.innerHTML = html;
@@ -707,10 +736,14 @@ async function loadSettings() {
   document.getElementById('set_gap_min_factor').value = quality.gap_min_factor || 0.5;
   document.getElementById('set_gap_max_factor').value = quality.gap_max_factor || 2.0;
 
+  document.getElementById('set_enable_long').checked = trading.enable_long !== false;
+  document.getElementById('set_enable_short').checked = trading.enable_short !== false;
+  document.getElementById('set_force_long').checked = trading.force_direction === 'LONG';
+  document.getElementById('set_force_short').checked = trading.force_direction === 'SHORT';
   document.getElementById('set_tp_pct').value = trading.tp_pct || 0.5;
   document.getElementById('set_sl_pct').value = trading.sl_pct || 0.3;
   document.getElementById('set_fee_pct').value = trading.fee_pct || 0.05;
-  document.getElementById('set_hold_max_min').value = trading.hold_max_min || 5;
+  document.getElementById('set_hold_max_sec').value = trading.hold_max_sec || 5;
   document.getElementById('set_position_size').value = trading.position_size || 10;
   document.getElementById('set_leverage').value = trading.leverage || 2;
   document.getElementById('set_max_positions').value = trading.max_positions || 10;
@@ -745,10 +778,13 @@ async function saveSettings() {
       }
     },
     trading: {
+      enable_long: document.getElementById('set_enable_long').checked,
+      enable_short: document.getElementById('set_enable_short').checked,
+      force_direction: document.getElementById('set_force_long').checked ? 'LONG' : document.getElementById('set_force_short').checked ? 'SHORT' : null,
       tp_pct: parseFloat(document.getElementById('set_tp_pct').value),
       sl_pct: parseFloat(document.getElementById('set_sl_pct').value),
       fee_pct: parseFloat(document.getElementById('set_fee_pct').value),
-      hold_max_min: parseInt(document.getElementById('set_hold_max_min').value),
+      hold_max_sec: parseInt(document.getElementById('set_hold_max_sec').value),
       position_size: parseInt(document.getElementById('set_position_size').value),
       leverage: parseInt(document.getElementById('set_leverage').value),
       max_positions: parseInt(document.getElementById('set_max_positions').value)

@@ -267,8 +267,12 @@ class TraderThread(threading.Thread):
         if not impulse:
             return
 
-        # Save impulse to DB
+        # Save ALL impulses to DB (including skipped ones)
         impulse_id = db.save_impulse(impulse)
+
+        # Only open positions for accepted impulses
+        if impulse.get('status') != 'accepted':
+            return
 
         # Get active pairs
         pairs = state.pair_manager.get_pairs_info()

@@ -181,6 +181,35 @@ class LeadLagTrader:
             if abs(move) >= threshold:
                 direction = 'LONG' if move > 0 else 'SHORT'
 
+                # Direction filter
+                trading_cfg = self.config.get('trading', {})
+                force = trading_cfg.get('force_direction')
+                skip_status = None
+                if force in ('LONG', 'SHORT'):
+                    direction = force
+                else:
+                    if direction == 'LONG' and not trading_cfg.get('enable_long', True):
+                        logger.info(f"[IMPULSE] BTC {direction} {abs(move)*100:.2f}% SKIP: LONG disabled")
+                        skip_status = 'skip_long_disabled'
+                    elif direction == 'SHORT' and not trading_cfg.get('enable_short', True):
+                        logger.info(f"[IMPULSE] BTC {direction} {abs(move)*100:.2f}% SKIP: SHORT disabled")
+                        skip_status = 'skip_short_disabled'
+
+                if skip_status:
+                    return {
+                        'timestamp': get_gmt2_str(),
+                        'leader': 'BTC',
+                        'direction': direction,
+                        'magnitude': round(move, 6),
+                        'candle_open': o,
+                        'candle_close': c,
+                        'n_followers_entered': 0,
+                        'gap_seconds': 0,
+                        'gap_factor': 1.0,
+                        'quality': 0,
+                        'status': skip_status,
+                    }
+
                 # Quality scoring
                 gap_sec = now - self.last_impulse_ts if self.last_impulse_ts > 0 else 9999
                 gap_factor = self._calc_time_gap_factor(gap_sec)
@@ -193,7 +222,19 @@ class LeadLagTrader:
                                 f"(gap={gap_sec:.0f}s, factor={gap_factor:.2f})")
                     # Still update last_impulse_ts so gap accumulates from last DETECTED impulse
                     self.last_impulse_ts = now
-                    return None
+                    return {
+                        'timestamp': get_gmt2_str(),
+                        'leader': 'BTC',
+                        'direction': direction,
+                        'magnitude': round(move, 6),
+                        'candle_open': o,
+                        'candle_close': c,
+                        'n_followers_entered': 0,
+                        'gap_seconds': round(gap_sec, 0),
+                        'gap_factor': round(gap_factor, 2),
+                        'quality': round(quality, 6),
+                        'status': 'skip_quality',
+                    }
 
                 impulse = {
                     'timestamp': get_gmt2_str(),
@@ -206,6 +247,7 @@ class LeadLagTrader:
                     'gap_seconds': round(gap_sec, 0),
                     'gap_factor': round(gap_factor, 2),
                     'quality': round(quality, 6),
+                    'status': 'accepted',
                 }
                 self.last_impulse_ts = now
                 logger.info(f"[IMPULSE] BTC {direction} {abs(move)*100:.2f}% "
@@ -232,7 +274,7 @@ class LeadLagTrader:
         position_size = cfg.get('position_size', 10)
         leverage = cfg.get('leverage', 2)
         max_positions = cfg.get('max_positions', 10)
-        hold_max = cfg.get('hold_max_min', 5) * 60  # to seconds
+        hold_max = cfg.get('hold_max_sec', 30)
 
         opened = 0
 
@@ -336,7 +378,7 @@ class LeadLagTrader:
                     try:
                         opened = datetime.strptime(pos.opened_at, '%Y-%m-%d %H:%M:%S')
                         elapsed = (now - opened).total_seconds()
-                        if pos.hold_max_seconds > 0 and elapsed >= pos.hold_max_seconds:
+                        if elapsed >= pos.hold_max_seconds:
                             to_close.append((sym, 'TIME'))
                     except (ValueError, TypeError):
                         pass

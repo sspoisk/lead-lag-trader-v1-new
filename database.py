@@ -144,6 +144,10 @@ class Database:
                 cur.execute("ALTER TABLE impulses ADD COLUMN quality REAL DEFAULT 0")
             except Exception:
                 pass  # columns already exist
+            try:
+                cur.execute("ALTER TABLE impulses ADD COLUMN status TEXT DEFAULT 'accepted'")
+            except Exception:
+                pass  # column already exists
 
     # === TRADES ===
 
@@ -285,8 +289,8 @@ class Database:
             cur.execute('''
             INSERT INTO impulses (timestamp, leader, direction, magnitude,
                 n_followers_entered, candle_open, candle_close,
-                gap_seconds, gap_factor, quality)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                gap_seconds, gap_factor, quality, status)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             ''', (
                 impulse.get('timestamp', get_gmt2_str()),
                 impulse.get('leader', 'BTC'),
@@ -298,6 +302,7 @@ class Database:
                 impulse.get('gap_seconds', 0),
                 impulse.get('gap_factor', 1.0),
                 impulse.get('quality', 0),
+                impulse.get('status', 'accepted'),
             ))
             return cur.lastrowid
 

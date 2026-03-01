@@ -29,9 +29,12 @@
     "degrade_pf": 1.1
   },
   "trading": {
-    "tp_pct": 1,
-    "sl_pct": 0.2,
-    "hold_max_min": 0,
+    "enable_long": true,
+    "enable_short": true,
+    "force_direction": null,
+    "tp_pct": 0.3,
+    "sl_pct": 0.3,
+    "hold_max_sec": 300,
     "fee_pct": 0.05,
     "position_size": 10,
     "leverage": 2,
