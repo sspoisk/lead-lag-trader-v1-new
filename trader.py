@@ -424,9 +424,14 @@ class LeadLagTrader:
 
     def get_status(self) -> Dict:
         wr = (self.wins / self.total_trades * 100) if self.total_trades > 0 else 0
+        initial = self.config.get('trading', {}).get('initial_balance', 1000.0)
+        pnl_usd = self.balance - initial
+        pnl_pct = (pnl_usd / initial * 100) if initial > 0 else 0
         return {
             'balance': round(self.balance, 2),
-            'total_pnl': round(self.total_pnl, 2),
+            'initial_balance': initial,
+            'pnl_usd': round(pnl_usd, 2),
+            'pnl_pct': round(pnl_pct, 2),
             'total_trades': self.total_trades,
             'wins': self.wins,
             'losses': self.losses,
