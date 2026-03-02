@@ -34,7 +34,7 @@
     "force_direction": null,
     "tp_pct": 0.3,
     "sl_pct": 0.3,
-    "hold_max_sec": 300,
+    "hold_max_sec": 3,
     "fee_pct": 0.05,
     "position_size": 10,
     "leverage": 2,
