@@ -38,7 +38,7 @@
     "fee_pct": 0.05,
     "position_size": 10,
     "leverage": 2,
-    "max_positions": 30,
+    "max_positions": 15,
     "initial_balance": 1000.0
   },
   "scanner": {
